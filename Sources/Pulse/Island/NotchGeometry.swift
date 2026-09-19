@@ -62,6 +62,9 @@ enum IslandMetrics {
     static let contentInset: CGFloat = 12
     /// Gap between the switcher's last row and the island's bottom edge.
     static let switcherBottomInset: CGFloat = 10
+    /// The same gap when the list overflows: the fading edge row already reads as space, so a full
+    /// inset under it looked like a hole.
+    static let switcherOverflowBottomInset: CGFloat = 2
 
     static func closedSize(_ notch: NotchGeometry) -> CGSize {
         CGSize(width: notch.size.width + 2 * closedTopRadius, height: notch.size.height)
@@ -73,7 +76,8 @@ enum IslandMetrics {
     }
 
     static func switcherSize(_ notch: NotchGeometry, rows: Int) -> CGSize {
-        CGSize(width: switcherWidth, height: notch.size.height + switcherListHeight(rows: rows) + switcherBottomInset)
+        let inset = rows > maxVisibleSwitcherRows ? switcherOverflowBottomInset : switcherBottomInset
+        return CGSize(width: switcherWidth, height: notch.size.height + switcherListHeight(rows: rows) + inset)
     }
 
     static func clipboardSize(_ notch: NotchGeometry) -> CGSize {

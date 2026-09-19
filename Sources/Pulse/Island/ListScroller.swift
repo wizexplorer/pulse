@@ -8,8 +8,19 @@ import SwiftUI
 /// animate its clip view directly. That's the native way to scroll smoothly, and trackpad/wheel
 /// scrolling keeps working.
 @MainActor
-final class ListScroller {
-    fileprivate weak var scrollView: NSScrollView?
+final class ListScroller: ObservableObject {
+    fileprivate weak var scrollView: NSScrollView? {
+        didSet {
+            guard scrollView !== oldValue else { return }
+            observeEdges()
+        }
+    }
+
+    /// Whether content is cut off above / below the visible area. Published only when it flips, so
+    /// scrolling doesn't re-render the list every frame.
+    @Published private(set) var hasContentAbove = false
+    @Published private(set) var hasContentBelow = false
+    private var edgeObservers: [NSObjectProtocol] = []
 
     /// Scrolls so that content offset `top` (points from the top of the list) is at the top edge.
     /// Returns false if the scroll view hasn't been found yet (the caller can fall back to `scrollTo`).
@@ -55,6 +66,44 @@ final class ListScroller {
             return scroll(toTop: rowBottom + margin - visibleHeight, animated: animated)
         }
         return true
+    }
+}
+
+extension ListScroller {
+    /// Watches the clip view scrolling and the list changing length, to keep the edge flags current.
+    fileprivate func observeEdges() {
+        edgeObservers.forEach(NotificationCenter.default.removeObserver)
+        edgeObservers.removeAll()
+        guard let scrollView else { return }
+        let clip = scrollView.contentView
+        clip.postsBoundsChangedNotifications = true
+        var targets: [(NSView, Notification.Name)] = [(clip, NSView.boundsDidChangeNotification), (clip, NSView.frameDidChangeNotification)]
+        if let document = scrollView.documentView {
+            document.postsFrameChangedNotifications = true
+            targets.append((document, NSView.frameDidChangeNotification))
+        }
+        edgeObservers = targets.map { view, name in
+            NotificationCenter.default.addObserver(forName: name, object: view, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateEdges() }
+            }
+        }
+        updateEdges()
+    }
+
+    fileprivate func updateEdges() {
+        guard let scrollView, let document = scrollView.documentView else { return }
+        let clip = scrollView.contentView
+        let visibleHeight = clip.bounds.height
+        let top = document.isFlipped
+            ? clip.bounds.origin.y
+            : document.frame.height - visibleHeight - clip.bounds.origin.y
+        let above = top > 0.5
+        let below = top + visibleHeight < document.frame.height - 0.5
+        guard above != hasContentAbove || below != hasContentBelow else { return }
+        withAnimation(Motion.edgeFade) {
+            hasContentAbove = above
+            hasContentBelow = below
+        }
     }
 }
 

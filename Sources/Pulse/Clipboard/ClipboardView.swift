@@ -19,6 +19,8 @@ struct ClipboardView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             footer
+                // The list's faded edge already reads as space; the full stack gap under it looked like a hole.
+                .padding(.top, -6)
         }
         .onAppear { DispatchQueue.main.async { searchFocused = true } }
     }
@@ -96,7 +98,7 @@ private struct KeyHint: View {
 private struct ClipboardList: View {
     @ObservedObject var model: ClipboardModel
     @Namespace private var selectionNamespace
-    @State private var scroller = ListScroller()
+    @StateObject private var scroller = ListScroller()
 
     private static let rowHeight: CGFloat = 34
     private static let rowSpacing: CGFloat = 2
@@ -144,6 +146,8 @@ private struct ClipboardList: View {
                     .background(ListScrollerAnchor(scroller: scroller))
                 }
                 .scrollIndicators(.never)
+                // Rows cut off at an edge dissolve into the black, over about a row's height.
+                .mask(EdgeFadeMask(top: scroller.hasContentAbove, bottom: scroller.hasContentBelow, length: 40))
                 .onChange(of: model.selectedID) { _, id in
                     // Glides along with the highlight, like the window switcher. Keyboard only.
                     guard !model.selectionFromPointer,

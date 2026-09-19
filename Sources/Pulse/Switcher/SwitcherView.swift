@@ -3,7 +3,7 @@ import SwiftUI
 struct SwitcherView: View {
     @ObservedObject var model: SwitcherModel
     @Namespace private var selectionNamespace
-    @State private var scroller = ListScroller()
+    @StateObject private var scroller = ListScroller()
 
     var body: some View {
         if model.isLoaded && model.windows.isEmpty {
@@ -41,11 +41,10 @@ struct SwitcherView: View {
                 }
                 .scrollIndicators(.never)
                 .scrollDisabled(model.windows.count <= IslandMetrics.maxVisibleSwitcherRows)
-                // Soft edges where more windows are out of view: shows there's more without a scrollbar.
-                .mask(EdgeFadeMask(
-                    top: model.firstVisibleIndex > 0,
-                    bottom: model.firstVisibleIndex + IslandMetrics.maxVisibleSwitcherRows < model.windows.count
-                ))
+                // Where more windows are out of view, the edge dissolves into the black: shows there's
+                // more without a scrollbar, and a row cut off mid-scroll melts away instead of being
+                // sliced. Follows the real scroll position, so trackpad scrolling gets it too.
+                .mask(EdgeFadeMask(top: scroller.hasContentAbove, bottom: scroller.hasContentBelow, length: 40, intensity: 1.8))
                 .onChange(of: model.firstVisibleIndex) { _, first in
                     // Glides on purpose (owner's call); instant under Reduce Motion.
                     guard model.windows.indices.contains(first) else { return }
@@ -112,19 +111,40 @@ private struct SwitcherRow: View {
     }
 }
 
-/// Fades the top and/or bottom 14 pt of a scroll view: a soft edge instead of a hard clip.
+/// Fades the top and/or bottom of a scroll view where content continues out of view: rows dissolve
+/// into the island's black instead of being sliced off by a hard edge.
 struct EdgeFadeMask: View {
     let top: Bool
     let bottom: Bool
-    private let fade: CGFloat = 14
+    var length: CGFloat = 14
+    /// Steepness: 1 is a plain smoothstep; higher keeps more of the fade near black, so the edge
+    /// row dissolves more.
+    var intensity: Double = 1
 
     var body: some View {
         VStack(spacing: 0) {
-            LinearGradient(colors: [top ? .clear : .black, .black], startPoint: .top, endPoint: .bottom)
-                .frame(height: fade)
+            fade(opaqueAtTop: false)
+                .opacity(top ? 1 : 0)
+                .background(Color.black.opacity(top ? 0 : 1))
+                .frame(height: length)
             Color.black
-            LinearGradient(colors: [.black, bottom ? .clear : .black], startPoint: .top, endPoint: .bottom)
-                .frame(height: fade)
+            fade(opaqueAtTop: true)
+                .opacity(bottom ? 1 : 0)
+                .background(Color.black.opacity(bottom ? 0 : 1))
+                .frame(height: length)
         }
+    }
+
+    /// Eased ramp from clear to opaque. A linear ramp shows a visible band where it starts; easing
+    /// both ends makes the content melt away with no edge to spot.
+    private var stops: [Gradient.Stop] {
+        (0...12).map { i in
+            let t = Double(i) / 12
+            return Gradient.Stop(color: .black.opacity(pow(t * t * (3 - 2 * t), intensity)), location: t)
+        }
+    }
+
+    private func fade(opaqueAtTop: Bool) -> LinearGradient {
+        LinearGradient(stops: stops, startPoint: opaqueAtTop ? .bottom : .top, endPoint: opaqueAtTop ? .top : .bottom)
     }
 }

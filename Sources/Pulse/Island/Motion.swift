@@ -68,6 +68,9 @@ enum Motion {
     /// Rows closing a gap after a delete, or moving into and out of the pinned section.
     static var listEdit: Animation? { reduceMotion ? nil : .spring(duration: 0.3, bounce: 0) }
 
+    /// A list's edge fade appearing or clearing as it scrolls to (or away from) its end.
+    static let edgeFade = strongEaseOut(0.2)
+
     /// A list sliding to keep the selection in view (windows past the 6th, clipboard items past the
     /// fold). Driven by AppKit, not SwiftUI (see ListScroller), so it's an NSAnimationContext
     /// duration + curve: an unhurried ease-in-out that glides the next row in.
