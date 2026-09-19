@@ -30,16 +30,17 @@ enum Motion {
     // MARK: Shell
 
     // Shell size: independent width/height springs, run by ShellAnimator.
-    static let openSpring = SpringSpec(duration: 0.38, bounce: 0.38)
+    /// Open: ~5% overshoot (bounce 0.32), at size by ~190 ms.
+    static let openSpring = SpringSpec(duration: 0.38, bounce: 0.32)
     static let resizeSpring = SpringSpec(duration: 0.4, bounce: 0.33)
-    /// Close, sides: lead the bottom only slightly (50% at ~95 ms vs the bottom's ~125 ms), with a
-    /// soft settle. The reference's much faster sides felt too abrupt on a real notch.
-    static let closeWidthSpring = SpringSpec(duration: 0.4, bounce: 0.2)
-    /// Close, bottom edge: follows, smooth (reference: 50% at ~125 ms, 90% at ~275 ms).
-    static let closeHeightSpring = SpringSpec(duration: 0.5, bounce: 0.1)
+    /// Close: over-damped springs (negative bounce) so the start stays responsive but the final
+    /// approach into the notch lingers. Sides lead slightly (50% at ~98 ms, 98% at ~403 ms)...
+    static let closeWidthSpring = SpringSpec(duration: 0.34, bounce: -0.15)
+    /// ...the bottom edge follows (50% at ~115 ms, 98% at ~473 ms).
+    static let closeHeightSpring = SpringSpec(duration: 0.4, bounce: -0.15)
 
     // Corners and content (SwiftUI animations), matched to the shell's springs.
-    static var open: Animation { reduceMotion ? fade : .spring(duration: 0.38, bounce: 0.38) }
+    static var open: Animation { reduceMotion ? fade : .spring(duration: 0.38, bounce: 0.32) }
     static var resize: Animation { reduceMotion ? fade : .spring(duration: 0.4, bounce: 0.33) }
     /// Corners follow the bottom edge when closing.
     static var closeCorners: Animation { reduceMotion ? fade : .spring(duration: 0.5, bounce: 0.1) }
@@ -47,7 +48,12 @@ enum Motion {
 
     /// How long to keep the panel on screen after a close begins, so the slowest part settles
     /// before the panel is ordered out.
-    static let closeSettleTime: TimeInterval = 0.6
+    /// Close travel the springs above were tuned on (the 6-row window panel). Farther travel gets a
+    /// proportionally quicker spring, so a bigger panel (the clipboard) doesn't feel slower to close.
+    static let closeReferenceWidthTravel: CGFloat = 343
+    static let closeReferenceHeightTravel: CGFloat = 284
+
+    static let closeSettleTime: TimeInterval = 0.72
 
     // MARK: Content
 

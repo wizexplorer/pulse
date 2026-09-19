@@ -124,7 +124,11 @@ final class IslandController {
         } else {
             // Each part of the shell moves on its own spring: that's what makes the collapse feel
             // alive rather than a uniform shrink. The sides lead; the bottom edge (and corners) follow.
-            shell.animate(to: closed, width: Motion.closeWidthSpring, height: Motion.closeHeightSpring)
+            shell.animate(
+                to: closed,
+                width: Motion.closeWidthSpring.scaled(forDistance: state.width - closed.width, reference: Motion.closeReferenceWidthTravel),
+                height: Motion.closeHeightSpring.scaled(forDistance: state.height - closed.height, reference: Motion.closeReferenceHeightTravel)
+            )
             withAnimation(Motion.closeCorners) { state.mode = .idle }
             withAnimation(Motion.contentOut) { state.contentShown = false }
         }

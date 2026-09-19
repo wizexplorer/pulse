@@ -7,6 +7,15 @@ struct SpringSpec {
     var duration: Double
     var bounce: Double
 
+    /// Shortens the spring for travel beyond `reference` (by the square root of the ratio, never
+    /// below 75%), so the same motion covering more ground still finishes in about the same time.
+    /// Shorter travel keeps the tuned timing.
+    func scaled(forDistance distance: CGFloat, reference: CGFloat) -> SpringSpec {
+        guard distance > reference, reference > 0 else { return self }
+        let factor = max(0.75, (Double(reference) / Double(distance)).squareRoot())
+        return SpringSpec(duration: duration * factor, bounce: bounce)
+    }
+
     fileprivate var stiffness: Double { pow(2 * .pi / duration, 2) }
     fileprivate var damping: Double { 4 * .pi * (1 - bounce) / duration }
 }
