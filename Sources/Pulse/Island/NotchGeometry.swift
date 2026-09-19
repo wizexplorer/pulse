@@ -44,6 +44,8 @@ enum IslandMetrics {
     static let closedBottomRadius: CGFloat = 10
     static let openTopRadius: CGFloat = 14
     static let openBottomRadius: CGFloat = 30
+    /// How far below the notch the island must extend before its corners are fully open-sized.
+    static let cornerGrowthDistance: CGFloat = 80
 
     /// The panel is a fixed transparent canvas large enough for every mode; the island draws inside it.
     static let panelSize = CGSize(width: 820, height: 620)

@@ -61,11 +61,17 @@ struct IslandRootView: View {
 
     var body: some View {
         let open = state.isOpen
-        // Under Reduce Motion the shell only fades, so its corners must not morph either.
-        let openShape = open || Motion.reduceMotion
-        let topRadius = openShape ? IslandMetrics.openTopRadius : IslandMetrics.closedTopRadius
-        let bottomRadius = openShape ? IslandMetrics.openBottomRadius : IslandMetrics.closedBottomRadius
+        // Corners scale with the island's live height (stepped every frame by ShellAnimator), so the
+        // island stays round while it grows and shrinks and only tightens into the notch's radius
+        // near the end. Tied to the open/closed flag instead, they snapped tight at the start of a
+        // close and the big shell read as a black box. Under Reduce Motion they stay open (it only fades).
+        let grown = Motion.reduceMotion ? 1 : min(max(
+            (state.height - state.notch.size.height) / IslandMetrics.cornerGrowthDistance, 0), 1)
+        let topRadius = IslandMetrics.closedTopRadius + (IslandMetrics.openTopRadius - IslandMetrics.closedTopRadius) * grown
+        let bottomRadius = IslandMetrics.closedBottomRadius + (IslandMetrics.openBottomRadius - IslandMetrics.closedBottomRadius) * grown
         let shape = NotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
+        // Content is laid out against the open inset, so it never reflows as the corners change.
+        let inset = IslandMetrics.openTopRadius
 
         ZStack(alignment: .top) {
             if open {
@@ -76,16 +82,19 @@ struct IslandRootView: View {
 
             ZStack(alignment: .top) {
                 shape.fill(Color.black)
-                if open {
+                // Content stays in the hierarchy for the whole open/close and fades through an animated
+                // value, NOT a SwiftUI transition: on macOS, views mid-transition are drawn outside the
+                // parent's clip, so content leaked out of the growing island.
+                Group {
                     header
                         .frame(height: state.notch.size.height)
-                        .padding(.horizontal, topRadius + IslandMetrics.contentInset + 4)
-                        .transition(.islandContent)
+                        .padding(.horizontal, inset + IslandMetrics.contentInset + 4)
+                    content
+                        .padding(.top, state.notch.size.height)
+                        .padding(.horizontal, inset + IslandMetrics.contentInset)
+                        .padding(.bottom, IslandMetrics.contentInset)
                 }
-                content
-                    .padding(.top, state.notch.size.height)
-                    .padding(.horizontal, topRadius + IslandMetrics.contentInset)
-                    .padding(.bottom, IslandMetrics.contentInset)
+                .modifier(IslandContentEffect(progress: state.contentShown ? 1 : 0, reduceMotion: Motion.reduceMotion))
             }
             .frame(width: state.size.width, height: state.size.height, alignment: .top)
             .clipShape(shape)
@@ -104,19 +113,18 @@ struct IslandRootView: View {
     /// left, where you are on the right. The gap in the middle clears the hardware notch.
     @ViewBuilder
     private var header: some View {
-        // ZStack, so an outgoing and incoming header overlap while swapping modes instead of sitting side by side.
         ZStack {
-            switch state.mode {
+            switch state.contentMode {
             case .idle: EmptyView()
-            case .switcher: SwitcherHeader(model: switcher, notchWidth: state.notch.size.width).transition(.islandContent)
-            case .clipboard: ClipboardHeader(model: clipboard, notchWidth: state.notch.size.width).transition(.islandContent)
+            case .switcher: SwitcherHeader(model: switcher, notchWidth: state.notch.size.width)
+            case .clipboard: ClipboardHeader(model: clipboard, notchWidth: state.notch.size.width)
             }
         }
     }
 
     @ViewBuilder
     private var content: some View {
-        switch state.mode {
+        switch state.contentMode {
         case .idle:
             EmptyView()
         case .switcher:
@@ -125,14 +133,12 @@ struct IslandRootView: View {
                     width: IslandMetrics.switcherWidth - 2 * (IslandMetrics.openTopRadius + IslandMetrics.contentInset),
                     height: IslandMetrics.switcherListHeight(rows: switcher.rowCountForLayout)
                 )
-                .transition(.islandContent)
         case .clipboard:
             ClipboardView(model: clipboard)
                 .frame(
                     width: IslandMetrics.clipboardSize.width - 2 * (IslandMetrics.openTopRadius + IslandMetrics.contentInset),
                     height: IslandMetrics.clipboardSize.height - IslandMetrics.contentInset
                 )
-                .transition(.islandContent)
         }
     }
 }

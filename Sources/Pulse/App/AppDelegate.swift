@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         AppActivationTracker.shared.start()
 
         registerHotKeys()
+        installDevHooksIfRequested()
         installStatusItem()
 
         Log.app.info("launched; accessibility: \(Permissions.hasAccessibility)")
@@ -67,6 +68,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let started = monitor.start()
         Log.input.info("trackpad gesture monitor started: \(started)")
         if started { gestures = monitor }
+    }
+
+    // MARK: - Development
+
+    /// Lets tooling drive the island without a keyboard, for recording and measuring animations:
+    ///   open --env PULSE_DEV_HOOKS=1 build/Pulse.app
+    ///   swift scripts/island.swift switcher|clipboard|dismiss
+    /// Off unless the app is launched with that variable, so normal use registers nothing.
+    private var devHookObserver: NSObjectProtocol?
+
+    private func installDevHooksIfRequested() {
+        guard ProcessInfo.processInfo.environment["PULSE_DEV_HOOKS"] != nil else { return }
+        devHookObserver = DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("dev.pulse.Pulse.command"), object: nil, queue: .main
+        ) { [weak self] note in
+            let command = note.object as? String
+            MainActor.assumeIsolated {
+                guard let island = self?.island else { return }
+                switch command {
+                case "switcher": island.showSwitcher()
+                case "clipboard": island.toggleClipboard()
+                case "dismiss": island.dismiss()
+                default: break
+                }
+            }
+        }
     }
 
     // MARK: - Menu bar

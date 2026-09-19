@@ -31,6 +31,9 @@ final class IslandController {
     /// Called on every presentation; the app uses it to start permission-gated features late.
     var onPresent: (() -> Void)?
 
+    /// Width and height on independent springs (SwiftUI can't split a frame's animation).
+    private lazy var shell = ShellAnimator(state: state)
+
     init(clipboard: ClipboardModel) {
         self.clipboard = clipboard
         panel.setRootView(IslandRootView(
@@ -39,6 +42,7 @@ final class IslandController {
             clipboard: clipboard,
             onBackgroundTap: { [weak self] in self?.dismiss() }
         ))
+        if let view = panel.contentView { shell.attach(to: view) }
         switcher.onLoaded = { [weak self] in
             guard let self else { return }
             if self.pendingSwitcherOpen != nil { self.openPendingSwitcher() } else { self.resizeForCurrentMode() }
@@ -51,7 +55,7 @@ final class IslandController {
 
     // MARK: - Presentation
 
-    private func present(_ mode: IslandMode, animation: Animation? = nil) {
+    private func present(_ mode: IslandMode) {
         onPresent?()
         hideWork?.cancel()
         hideWork = nil
@@ -63,7 +67,7 @@ final class IslandController {
             // Start as an exact copy of the hardware notch, so the island appears to grow out of it.
             let notch = NotchGeometry.resolve(for: screen)
             state.notch = notch
-            state.size = IslandMetrics.closedSize(notch)
+            shell.set(IslandMetrics.closedSize(notch))
             panel.position(for: notch)
         }
 
@@ -76,12 +80,18 @@ final class IslandController {
         let apply = { [self] in
             guard id == presentationID else { return }
             let target = targetSize(for: mode)
-            // Reduce Motion: the shell never grows on screen. It takes its final size up front and fades in.
-            if Motion.reduceMotion { state.size = target }
-            withAnimation(state.isOpen ? Motion.resize : (animation ?? Motion.open)) {
-                state.mode = mode
-                state.size = target
+            let wasOpen = state.isOpen
+            if Motion.reduceMotion {
+                // The shell never grows on screen. It takes its final size up front and fades in.
+                shell.set(target)
+            } else if wasOpen {
+                shell.animate(to: target, width: Motion.resizeSpring, height: Motion.resizeSpring)
+            } else {
+                // Opening: width and height ride the same spring, as in the reference.
+                shell.animate(to: target, width: Motion.openSpring, height: Motion.openSpring)
             }
+            withAnimation(wasOpen ? Motion.resize : Motion.open) { state.mode = mode }
+            showContent(for: mode)
         }
         // Give a freshly ordered-in panel one frame at notch size before springing open.
         if wasVisible { apply() } else { DispatchQueue.main.async { MainActor.assumeIsolated(apply) } }
@@ -104,20 +114,49 @@ final class IslandController {
         panel.allowsKey = false
         panel.ignoresMouseEvents = true
 
-        withAnimation(Motion.close) {
-            state.mode = .idle
-            // Reduce Motion: keep the size and let the shell fade out instead of shrinking.
-            if !Motion.reduceMotion { state.size = IslandMetrics.closedSize(state.notch) }
+        let closed = IslandMetrics.closedSize(state.notch)
+        if Motion.reduceMotion {
+            // Keep the size and let the shell fade out instead of shrinking.
+            withAnimation(Motion.close) {
+                state.mode = .idle
+                state.contentShown = false
+            }
+        } else {
+            // Each part of the shell moves on its own spring: that's what makes the collapse feel
+            // alive rather than a uniform shrink. The sides lead; the bottom edge (and corners) follow.
+            shell.animate(to: closed, width: Motion.closeWidthSpring, height: Motion.closeHeightSpring)
+            withAnimation(Motion.closeCorners) { state.mode = .idle }
+            withAnimation(Motion.contentOut) { state.contentShown = false }
         }
 
         let work = DispatchWorkItem { [weak self] in
             guard let self, !self.state.isOpen else { return }
             self.panel.orderOut(nil)
+            self.state.contentMode = .idle
             self.switcher.reset()
             self.clipboard.didDismiss()
         }
         hideWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Motion.closeSettleTime, execute: work)
+    }
+
+    /// Lays out `mode`'s content (hidden) and fades it in. When switching modes, the new content
+    /// starts hidden on the next frame so it fades in rather than popping.
+    private func showContent(for mode: IslandMode) {
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        if state.contentMode != mode {
+            withTransaction(instant) {
+                state.contentShown = false
+                state.contentMode = mode
+            }
+            DispatchQueue.main.async { [self] in
+                guard state.mode == mode else { return }
+                withAnimation(Motion.contentIn) { state.contentShown = true }
+            }
+        } else {
+            withAnimation(Motion.contentIn) { state.contentShown = true }
+        }
     }
 
     private func targetSize(for mode: IslandMode) -> CGSize {
@@ -133,9 +172,9 @@ final class IslandController {
         let size = targetSize(for: state.mode)
         guard size != state.size else { return }
         if Motion.reduceMotion {
-            state.size = size
+            shell.set(size)
         } else {
-            withAnimation(Motion.resize) { state.size = size }
+            shell.animate(to: size, width: Motion.resizeSpring, height: Motion.resizeSpring)
         }
     }
 
@@ -212,8 +251,7 @@ final class IslandController {
         guard let work = pendingSwitcherOpen else { return }
         work.cancel()
         pendingSwitcherOpen = nil
-        // A swipe carried momentum, so it earns a little more bounce than a keypress.
-        present(.switcher, animation: switcherTrigger == .gesture ? Motion.openFromSwipe : Motion.open)
+        present(.switcher)
     }
 
     /// Temporary input used only while the switcher is open, torn down the moment it closes.
