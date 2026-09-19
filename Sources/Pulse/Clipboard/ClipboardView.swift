@@ -48,6 +48,17 @@ struct ClipboardView: View {
 
     private var footer: some View {
         HStack(spacing: 14) {
+            if model.isConfirmingClear {
+                let count = model.unpinnedCount
+                Text("Clear \(count) \(count == 1 ? "item" : "items")? Pinned items stay.")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color(red: 1, green: 0.45, blue: 0.42))
+                KeyHint(keys: "⌃⇧X", label: "Confirm")
+            } else {
+                KeyHint(keys: "⌘⇧P", label: model.selectedItem?.isPinned == true ? "Unpin" : "Pin", reserving: "Unpin")
+                KeyHint(keys: "⌃X", label: "Delete")
+                KeyHint(keys: "⌃⇧X", label: "Clear")
+            }
             Spacer()
             KeyHint(keys: "↩", label: "Paste")
             KeyHint(keys: "⌘↩", label: "Copy")
@@ -61,6 +72,8 @@ struct ClipboardView: View {
 private struct KeyHint: View {
     let keys: String
     let label: String
+    /// Longest label this hint can show, so switching labels doesn't shift its neighbours.
+    var reserving: String?
 
     var body: some View {
         HStack(spacing: 5) {
@@ -70,9 +83,12 @@ private struct KeyHint: View {
                 .padding(.horizontal, 5)
                 .frame(minWidth: 18, minHeight: 17)
                 .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(.white.opacity(0.1)))
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.45))
+            ZStack(alignment: .leading) {
+                if let reserving { Text(reserving).hidden() }
+                Text(label)
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.white.opacity(0.45))
         }
     }
 }
@@ -84,6 +100,21 @@ private struct ClipboardList: View {
 
     private static let rowHeight: CGFloat = 34
     private static let rowSpacing: CGFloat = 2
+    /// The hairline between pinned items and the history, with 10 pt of air above and below.
+    private static let separatorHeight: CGFloat = 21
+    /// Rows kept in view past the selection when moving with the keyboard (as in the window switcher).
+    private static let scrollMargin: CGFloat = 2 * (rowHeight + rowSpacing)
+
+    private var showsSeparator: Bool {
+        model.pinnedCount > 0 && model.pinnedCount < model.visibleItems.count
+    }
+
+    /// A row's top edge in list coordinates (the separator pushes the history rows down).
+    private func rowTop(at index: Int) -> CGFloat {
+        var top = CGFloat(index) * (Self.rowHeight + Self.rowSpacing)
+        if showsSeparator && index >= model.pinnedCount { top += Self.separatorHeight + Self.rowSpacing }
+        return top
+    }
 
     var body: some View {
         if model.visibleItems.isEmpty {
@@ -96,30 +127,17 @@ private struct ClipboardList: View {
                 ScrollView(.vertical) {
                     // Lazy: only rows on screen are ever built, however long the history is.
                     LazyVStack(spacing: Self.rowSpacing) {
-                        ForEach(model.visibleItems) { item in
-                            Button {
-                                // Select on the first click with no wait. A second click in the same
-                                // gesture pastes. (A double-tap recognizer would hold every single click.)
-                                model.select(item)
-                                if (NSApp.currentEvent?.clickCount ?? 1) >= 2 { model.choose(paste: true) }
-                            } label: {
-                                ClipRow(
-                                    item: item,
-                                    icon: model.sourceIcon(for: item),
-                                    imageURL: model.store.imageURL(for: item),
-                                    isSelected: item.id == model.selectedID,
-                                    namespace: selectionNamespace
-                                )
-                                .contentShape(Rectangle())
+                        // Pinned items lead, then a hairline, then the history (Raycast's layout). One
+                        // ForEach, so a row keeps its identity (and slides) as it's pinned or unpinned.
+                        ForEach(Array(model.visibleItems.enumerated()), id: \.element.id) { index, item in
+                            if showsSeparator && index == model.pinnedCount {
+                                Rectangle()
+                                    .fill(.white.opacity(0.22))
+                                    .frame(height: 1)
+                                    .padding(.horizontal, 8)
+                                    .frame(height: Self.separatorHeight)
                             }
-                            .buttonStyle(PressableRowStyle())
-                            .id(item.id)
-                            .contextMenu {
-                                Button("Paste") { model.select(item); model.choose(paste: true) }
-                                Button("Copy") { model.select(item); model.choose(paste: false) }
-                                Divider()
-                                Button("Delete", role: .destructive) { model.delete(item) }
-                            }
+                            row(for: item)
                         }
                     }
                     .padding(.trailing, 8)
@@ -127,14 +145,46 @@ private struct ClipboardList: View {
                 }
                 .scrollIndicators(.never)
                 .onChange(of: model.selectedID) { _, id in
-                    // Glides along with the highlight, like the window switcher.
-                    guard let id, let index = model.visibleItems.firstIndex(where: { $0.id == id }) else { return }
-                    let top = CGFloat(index) * (Self.rowHeight + Self.rowSpacing)
-                    if !scroller.reveal(rowTop: top, rowBottom: top + Self.rowHeight, animated: true) {
+                    // Glides along with the highlight, like the window switcher. Keyboard only.
+                    guard !model.selectionFromPointer,
+                          let id, let index = model.visibleItems.firstIndex(where: { $0.id == id }) else { return }
+                    let top = rowTop(at: index)
+                    if !scroller.reveal(rowTop: top, rowBottom: top + Self.rowHeight, margin: Self.scrollMargin, animated: true) {
                         proxy.scrollTo(id)
                     }
                 }
             }
+        }
+    }
+
+    private func row(for item: ClipItem) -> some View {
+        Button {
+            // Select on the first click with no wait. A second click in the same
+            // gesture pastes. (A double-tap recognizer would hold every single click.)
+            model.select(item)
+            if (NSApp.currentEvent?.clickCount ?? 1) >= 2 { model.choose(paste: true) }
+        } label: {
+            ClipRow(
+                item: item,
+                icon: model.sourceIcon(for: item),
+                imageURL: model.store.imageURL(for: item),
+                isSelected: item.id == model.selectedID,
+                namespace: selectionNamespace
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableRowStyle())
+        .id(item.id)
+        .onContinuousHover { phase in
+            if case .active = phase { model.hover(item) }
+        }
+        .contextMenu {
+            Button("Paste") { model.select(item); model.choose(paste: true) }
+            Button("Copy") { model.select(item); model.choose(paste: false) }
+            Button(item.isPinned ? "Unpin" : "Pin") { model.togglePin(item) }
+            Divider()
+            Button("Delete", role: .destructive) { model.delete(item) }
+            Button("Clear Unpinned Items", role: .destructive) { model.clearUnpinned() }
         }
     }
 }
@@ -155,6 +205,12 @@ private struct ClipRow: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
             Spacer(minLength: 0)
+            if item.isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .rotationEffect(.degrees(45))
+            }
         }
         .padding(.horizontal, 8)
         .frame(height: 34)

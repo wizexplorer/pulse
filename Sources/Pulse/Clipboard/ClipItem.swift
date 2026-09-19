@@ -17,11 +17,16 @@ struct ClipItem: Identifiable, Hashable, Sendable {
     let hash: String
     let sourceBundleID: String?
     var date: Date
+    /// When the item was pinned; nil when it isn't. Pinned items sit above the history, newest pin
+    /// first, and are never pruned or cleared.
+    var pinnedDate: Date?
+
+    var isPinned: Bool { pinnedDate != nil }
 
     /// Precomputed one-line summary so list rows never scan large strings while rendering.
     let title: String
 
-    init(id: String, kind: Kind, text: String?, imageFile: String?, pixelSize: CGSize?, hash: String, sourceBundleID: String?, date: Date) {
+    init(id: String, kind: Kind, text: String?, imageFile: String?, pixelSize: CGSize?, hash: String, sourceBundleID: String?, date: Date, pinnedDate: Date? = nil) {
         self.id = id
         self.kind = kind
         self.text = text
@@ -30,6 +35,7 @@ struct ClipItem: Identifiable, Hashable, Sendable {
         self.hash = hash
         self.sourceBundleID = sourceBundleID
         self.date = date
+        self.pinnedDate = pinnedDate
         self.title = Self.makeTitle(kind: kind, text: text, pixelSize: pixelSize)
     }
 

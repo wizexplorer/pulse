@@ -27,6 +27,8 @@ final class IslandController {
 
     // Clipboard session
     private var clipboardTarget: NSRunningApplication?
+    /// Pin / delete / clear shortcuts, only while the clipboard panel is key.
+    private var clipboardKeyMonitor: Any?
 
     /// Called on every presentation; the app uses it to start permission-gated features late.
     var onPresent: (() -> Void)?
@@ -102,6 +104,7 @@ final class IslandController {
         presentationID += 1
         endSwitcherSession()
         removeOutsideClickMonitor()
+        removeClipboardKeyMonitor()
         clipboardTarget = nil
 
         if panel.isKeyWindow {
@@ -308,6 +311,24 @@ final class IslandController {
         clipboardTarget = NSWorkspace.shared.frontmostApplication
         clipboard.prepareForPresentation()
         present(.clipboard)
+        installClipboardKeyMonitor()
+    }
+
+    private func installClipboardKeyMonitor() {
+        guard clipboardKeyMonitor == nil else { return }
+        // A local monitor sees keys before the search field does, so ⌃X never reaches its text.
+        clipboardKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let handled = MainActor.assumeIsolated {
+                guard let self, self.state.mode == .clipboard, event.window === self.panel else { return false }
+                return self.clipboard.handleShortcut(event)
+            }
+            return handled ? nil : event
+        }
+    }
+
+    private func removeClipboardKeyMonitor() {
+        if let monitor = clipboardKeyMonitor { NSEvent.removeMonitor(monitor) }
+        clipboardKeyMonitor = nil
     }
 
     private func finishClipboard(with item: ClipItem, paste: Bool) {

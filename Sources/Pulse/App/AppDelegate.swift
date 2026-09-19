@@ -92,6 +92,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case "switcher": island.showSwitcher()
                 case "clipboard": island.toggleClipboard()
                 case "dismiss": island.dismiss()
+                case "down": island.clipboard.move(1)
+                case "up": island.clipboard.move(-1)
+                case "pin": island.clipboard.togglePinOnSelection()
+                case "delete": island.clipboard.deleteSelection()
+                case "clear": island.clipboard.requestClear()
                 default: break
                 }
             }
@@ -110,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(withTitle: "Clipboard History  ⌃⌘V", action: #selector(showClipboard), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Window Switcher  ⌥⇥", action: #selector(showSwitcher), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Clear Clipboard History", action: #selector(clearHistory), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Clear Clipboard History (Keeps Pinned)", action: #selector(clearHistory), keyEquivalent: "").target = self
         menu.addItem(.separator())
         let loginItem = menu.addItem(withTitle: "Open at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         loginItem.target = self
@@ -137,5 +142,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showClipboard() { island.toggleClipboard() }
     @objc private func showSwitcher() { island.showSwitcher() }
     @objc private func openAccessibility() { Permissions.openAccessibilitySettings() }
-    @objc private func clearHistory() { island.clipboard.clearAll() }
+    @objc private func clearHistory() { island.clipboard.clearUnpinned() }
 }

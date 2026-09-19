@@ -40,6 +40,7 @@ applications* to **four fingers**. With the default setting, macOS also acts on 
 | ⌥⇥ / ⌥⇧⇥ | Open the switcher on the previous window. Keep ⌥ held and press ⇥ (or ↑↓) to move. Release ⌥ to switch. Esc cancels. |
 | 3-finger swipe ←/→ | Open the switcher. Keep swiping to step through windows. Lift your fingers to switch. |
 | ⌃⌘V | Clipboard history. Type to search, use ↑↓ to move, ↩ to paste into the previous app, and ⌘↩ to only copy. |
+| ⌘⇧P / ⌃X / ⌃⇧X | In the clipboard: pin or unpin the selected item (pinned items stay at the top and are never pruned), delete it, or clear everything that isn't pinned (press twice to confirm). |
 
 ## How it works (research summary)
 

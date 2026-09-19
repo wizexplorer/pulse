@@ -36,20 +36,23 @@ final class ListScroller {
         return true
     }
 
-    /// Scrolls the least amount needed to show a row spanning `rowTop...rowBottom` (list coordinates).
+    /// Scrolls the least amount needed to show a row spanning `rowTop...rowBottom` (list coordinates),
+    /// keeping `margin` points of the list visible beyond it, so the next rows slide in before the
+    /// selection reaches the edge.
     @discardableResult
-    func reveal(rowTop: CGFloat, rowBottom: CGFloat, animated: Bool) -> Bool {
+    func reveal(rowTop: CGFloat, rowBottom: CGFloat, margin: CGFloat = 0, animated: Bool) -> Bool {
         guard let scrollView, let document = scrollView.documentView else { return false }
         let clip = scrollView.contentView
         let visibleHeight = clip.bounds.height
         let currentTop = document.isFlipped
             ? clip.bounds.origin.y
             : document.frame.height - visibleHeight - clip.bounds.origin.y
-        if rowTop < currentTop {
-            return scroll(toTop: rowTop, animated: animated)
+        let margin = min(margin, max((visibleHeight - (rowBottom - rowTop)) / 2, 0))
+        if rowTop - margin < currentTop {
+            return scroll(toTop: rowTop - margin, animated: animated)
         }
-        if rowBottom > currentTop + visibleHeight {
-            return scroll(toTop: rowBottom - visibleHeight, animated: animated)
+        if rowBottom + margin > currentTop + visibleHeight {
+            return scroll(toTop: rowBottom + margin - visibleHeight, animated: animated)
         }
         return true
     }

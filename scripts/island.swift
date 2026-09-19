@@ -1,4 +1,4 @@
-// Sends a command to a Pulse launched with PULSE_DEV_HOOKS=1: switcher | clipboard | dismiss
+// Sends a command to a Pulse launched with PULSE_DEV_HOOKS=1: switcher | clipboard | dismiss | up | down | pin | delete | clear
 import Foundation
 let command = CommandLine.arguments.dropFirst().first ?? "switcher"
 DistributedNotificationCenter.default().postNotificationName(
