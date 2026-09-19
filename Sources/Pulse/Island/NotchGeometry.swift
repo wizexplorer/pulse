@@ -48,7 +48,7 @@ enum IslandMetrics {
     /// The panel is a fixed transparent canvas large enough for every mode; the island draws inside it.
     static let panelSize = CGSize(width: 820, height: 620)
 
-    static let switcherWidth: CGFloat = 460
+    static let switcherWidth: CGFloat = 540 // window panel width (was 460)
     static let switcherRowHeight: CGFloat = 44
     static let switcherRowSpacing: CGFloat = 2
     static let maxVisibleSwitcherRows = 6

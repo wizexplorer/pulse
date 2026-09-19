@@ -73,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func installStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "capsule.fill", accessibilityDescription: "Pulse")
+        item.button?.image = StatusIcon.make()
         let menu = NSMenu()
         menu.delegate = self
         menu.addItem(withTitle: "", action: #selector(openAccessibility), keyEquivalent: "").target = self

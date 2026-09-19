@@ -13,6 +13,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Pulse"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 [[ "$CONFIG" == "release" ]] && strip -x "$APP/Contents/MacOS/Pulse"
 
 # macOS ties the Accessibility grant to the code signature. An ad-hoc signature changes on every
