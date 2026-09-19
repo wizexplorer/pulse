@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var gestures: TrackpadGestureMonitor?
     private var keyboardFallback: KeyboardTap?
     private var statusItem: NSStatusItem?
+    private var launchAtLoginItem: NSMenuItem?
     private var accessibilityObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -21,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         registerHotKeys()
         installDevHooksIfRequested()
+        LaunchAtLogin.enableOnFirstInstalledLaunch()
         installStatusItem()
 
         Log.app.info("launched; accessibility: \(Permissions.hasAccessibility)")
@@ -110,6 +112,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(withTitle: "Clear Clipboard History", action: #selector(clearHistory), keyEquivalent: "").target = self
         menu.addItem(.separator())
+        let loginItem = menu.addItem(withTitle: "Open at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        loginItem.target = self
+        launchAtLoginItem = loginItem
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Pulse", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         statusItem = item
@@ -118,9 +124,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         let granted = Permissions.hasAccessibility
         if granted { startAccessibilityFeaturesIfPossible() }
+        launchAtLoginItem?.state = LaunchAtLogin.isEnabled ? .on : .off
         menu.items.first?.title = granted
             ? "Accessibility: allowed ✓"
             : "Accessibility: not allowed. Open Settings…"
+    }
+
+    @objc private func toggleLaunchAtLogin() {
+        LaunchAtLogin.setEnabled(!LaunchAtLogin.isEnabled)
     }
 
     @objc private func showClipboard() { island.toggleClipboard() }

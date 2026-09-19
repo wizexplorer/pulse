@@ -9,9 +9,13 @@ The app is 444 KB and uses about 0% CPU when idle.
 Only the Command Line Tools are needed. You don't need Xcode.
 
 ```sh
-make run        # release build → build/Pulse.app → launch
-make install    # copy to /Applications and launch
+make install    # build, copy to /Applications, launch (use this for everyday use)
+make run        # build and launch from build/ (for development)
 ```
+
+The installed copy turns on **Open at Login** the first time it runs. You can toggle it from the
+menu bar icon or in System Settings ▸ General ▸ Login Items. After changing code, run
+`make install` again to update the installed app. The login item keeps pointing at it.
 
 On first launch, grant **Accessibility** in System Settings ▸ Privacy & Security.
 

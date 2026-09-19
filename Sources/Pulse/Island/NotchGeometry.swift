@@ -42,7 +42,7 @@ struct NotchGeometry: Equatable {
 enum IslandMetrics {
     static let closedTopRadius: CGFloat = 6
     static let closedBottomRadius: CGFloat = 10
-    static let openTopRadius: CGFloat = 14
+    static let openTopRadius: CGFloat = 26 // the "ears" flaring into the top edge
     static let openBottomRadius: CGFloat = 30
     /// How far below the notch the island must extend before its corners are fully open-sized.
     static let cornerGrowthDistance: CGFloat = 80
