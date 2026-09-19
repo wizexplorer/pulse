@@ -3,6 +3,7 @@ import SwiftUI
 struct SwitcherView: View {
     @ObservedObject var model: SwitcherModel
     @Namespace private var selectionNamespace
+    @State private var scroller = ListScroller()
 
     var body: some View {
         if model.isLoaded && model.windows.isEmpty {
@@ -36,6 +37,7 @@ struct SwitcherView: View {
                             }
                         }
                     }
+                    .background(ListScrollerAnchor(scroller: scroller))
                 }
                 .scrollIndicators(.never)
                 .scrollDisabled(model.windows.count <= IslandMetrics.maxVisibleSwitcherRows)
@@ -45,13 +47,18 @@ struct SwitcherView: View {
                     bottom: model.firstVisibleIndex + IslandMetrics.maxVisibleSwitcherRows < model.windows.count
                 ))
                 .onChange(of: model.firstVisibleIndex) { _, first in
-                    // Smooth on purpose (see Motion.listScroll); instant under Reduce Motion.
+                    // Glides on purpose (owner's call); instant under Reduce Motion.
                     guard model.windows.indices.contains(first) else { return }
-                    withAnimation(Motion.listScroll) { proxy.scrollTo(model.windows[first].id, anchor: .top) }
+                    let top = CGFloat(first) * (IslandMetrics.switcherRowHeight + IslandMetrics.switcherRowSpacing)
+                    if !scroller.scroll(toTop: top, animated: true) {
+                        proxy.scrollTo(model.windows[first].id, anchor: .top)
+                    }
                 }
                 .onChange(of: model.windows.first?.id) { _, _ in
                     // New snapshot: start at the top without animating.
-                    if let first = model.windows.first { proxy.scrollTo(first.id, anchor: .top) }
+                    if !scroller.scroll(toTop: 0, animated: false), let first = model.windows.first {
+                        proxy.scrollTo(first.id, anchor: .top)
+                    }
                 }
             }
         }

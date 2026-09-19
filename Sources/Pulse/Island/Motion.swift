@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 /// Every animation curve lives here so the whole app moves with one "voice".
@@ -38,8 +39,11 @@ enum Motion {
     /// A list's selection highlight sliding to the next row.
     static var selection: Animation? { reduceMotion ? nil : .spring(duration: 0.26, bounce: 0.14) }
 
-    /// A list sliding to keep the selection in view.
-    static var listScroll: Animation? { reduceMotion ? nil : strongEaseOut(0.16) }
+    /// A list sliding to keep the selection in view (windows past the 6th, clipboard items past the
+    /// fold). Driven by AppKit, not SwiftUI (see ListScroller), so it's an NSAnimationContext
+    /// duration + curve: an unhurried ease-in-out that glides the next row in.
+    static let listScrollDuration: TimeInterval = 0.4
+    static let listScrollTiming = CAMediaTimingFunction(controlPoints: 0.25, 0.1, 0.25, 1)
 
     /// Press feedback on rows: the press is the deliberate phase, the release is the system snapping back.
     static let pressIn = strongEaseOut(0.14)

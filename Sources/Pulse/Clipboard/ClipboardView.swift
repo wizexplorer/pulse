@@ -80,6 +80,10 @@ private struct KeyHint: View {
 private struct ClipboardList: View {
     @ObservedObject var model: ClipboardModel
     @Namespace private var selectionNamespace
+    @State private var scroller = ListScroller()
+
+    private static let rowHeight: CGFloat = 34
+    private static let rowSpacing: CGFloat = 2
 
     var body: some View {
         if model.visibleItems.isEmpty {
@@ -91,7 +95,7 @@ private struct ClipboardList: View {
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
                     // Lazy: only rows on screen are ever built, however long the history is.
-                    LazyVStack(spacing: 2) {
+                    LazyVStack(spacing: Self.rowSpacing) {
                         ForEach(model.visibleItems) { item in
                             Button {
                                 // Select on the first click with no wait. A second click in the same
@@ -119,12 +123,16 @@ private struct ClipboardList: View {
                         }
                     }
                     .padding(.trailing, 8)
+                    .background(ListScrollerAnchor(scroller: scroller))
                 }
                 .scrollIndicators(.never)
                 .onChange(of: model.selectedID) { _, id in
-                    // Slides along with the highlight, like the window switcher.
-                    guard let id else { return }
-                    withAnimation(Motion.listScroll) { proxy.scrollTo(id) }
+                    // Glides along with the highlight, like the window switcher.
+                    guard let id, let index = model.visibleItems.firstIndex(where: { $0.id == id }) else { return }
+                    let top = CGFloat(index) * (Self.rowHeight + Self.rowSpacing)
+                    if !scroller.reveal(rowTop: top, rowBottom: top + Self.rowHeight, animated: true) {
+                        proxy.scrollTo(id)
+                    }
                 }
             }
         }
