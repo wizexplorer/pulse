@@ -34,6 +34,5 @@ enum Config {
     /// Fraction of the trackpad width the fingers must travel before the switcher opens.
     static let gestureTriggerDistance: CGFloat = 0.06
     /// Further travel needed for each additional selection step while the switcher is open.
-    static let gestureStepDistance: CGFloat = 0.07
-    static let hapticFeedback = true
+    static let gestureStepDistance: CGFloat = 0.035
 }

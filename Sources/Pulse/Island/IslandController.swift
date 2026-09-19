@@ -183,13 +183,11 @@ final class IslandController {
         } else {
             beginSwitcher(trigger: .gesture, initialStep: direction == .right ? 1 : -1)
         }
-        haptic()
     }
 
     func switcherGestureStepped(_ direction: TrackpadGestureMonitor.Direction) {
         guard state.mode == .switcher else { return }
         switcher.step(direction == .right ? 1 : -1)
-        haptic()
     }
 
     func switcherGestureEnded() {
@@ -255,11 +253,6 @@ final class IslandController {
     private func finishSwitch(to window: WindowInfo) {
         dismiss()
         WindowFocuser.focus(window)
-    }
-
-    private func haptic() {
-        guard Config.hapticFeedback else { return }
-        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     }
 
     // MARK: - Clipboard
