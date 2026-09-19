@@ -77,6 +77,29 @@ enum Motion {
     static let listScrollDuration: TimeInterval = 0.4
     static let listScrollTiming = CAMediaTimingFunction(controlPoints: 0.25, 0.1, 0.25, 1)
 
+    // MARK: Lock screen
+
+    // Fitted to a 60 fps recording of Alcove's lock screen unlock, frame by frame.
+    /// The island widening from the notch as the screen locks (the lock fades in with it).
+    static let lockGrowSpring = SpringSpec(duration: 0.38, bounce: 0.32)
+    /// The shackle swinging open: edge-on at ~100 ms, settled by ~250 ms, no overshoot.
+    static var lockShackle: Animation { reduceMotion ? fade : .spring(duration: 0.38, bounce: 0) }
+    /// How long the open lock stays before the island folds back into the notch.
+    static let lockOpenHold: TimeInterval = 0.48
+    /// Folding back: under-shoots the notch by ~7% at ~300 ms, settles by ~500 ms. (The reference fits
+    /// 0.48/0.34; ShellAnimator's immediate first step makes these inputs land on that.)
+    static let lockCollapseSpring = SpringSpec(duration: 0.45, bounce: 0.31)
+    /// The open lock blurring out as the island folds (~130 ms).
+    static let lockGlyphOut = strongEaseOut(0.14)
+    /// Panel stays up until the fold has settled, then it's removed.
+    static let lockCollapseSettle: TimeInterval = 0.6
+
+    /// Failed attempt: the lock shakes side to side, iOS style. A decaying sine: 6 swings at 6 Hz,
+    /// each ~38% smaller, done in half a second.
+    static let lockShakeFrequency: Double = 6
+    static let lockShakeSwings = 6
+    static let lockShakeDecay: Double = 0.62
+
     /// Press feedback on rows: the press is the deliberate phase, the release is the system snapping back.
     static let pressIn = strongEaseOut(0.14)
     static let pressOut = strongEaseOut(0.08)
@@ -95,6 +118,8 @@ enum Motion {
 struct IslandContentEffect: ViewModifier, Animatable {
     var progress: Double
     let reduceMotion: Bool
+    /// Blur at progress 0. Large content blurs a lot; a small glyph needs far less to dissolve.
+    var maxBlur: CGFloat = 16
 
     var animatableData: Double {
         get { progress }
@@ -106,7 +131,7 @@ struct IslandContentEffect: ViewModifier, Animatable {
             // Opaque early (by ~45% of the way), then the blur does the rest: content is laid out at
             // full size from the start and simply comes into focus, as in the reference.
             .opacity(reduceMotion ? progress : min(1, progress * 2.2))
-            .blur(radius: reduceMotion ? 0 : (1 - progress) * 16)
+            .blur(radius: reduceMotion ? 0 : (1 - progress) * maxBlur)
     }
 }
 

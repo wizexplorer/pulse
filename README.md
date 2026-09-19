@@ -41,6 +41,7 @@ applications* to **four fingers**. With the default setting, macOS also acts on 
 | 3-finger swipe ←/→ | Open the switcher. Keep swiping to step through windows. Lift your fingers to switch. |
 | ⌃⌘V | Clipboard history. Type to search, use ↑↓ to move, ↩ to paste into the previous app, and ⌘↩ to only copy. |
 | ⌘⇧P / ⌃X / ⌃⇧X | In the clipboard: pin or unpin the selected item (pinned items stay at the top and are never pruned), delete it, or clear everything that isn't pinned (press twice to confirm). |
+| Lock screen | While the Mac is locked, the island widens beside the notch with a lock. A wrong password or finger shakes it; unlocking swings the lock open and folds the island back into the notch. |
 
 ## How it works (research summary)
 
@@ -53,6 +54,7 @@ applications* to **four fingers**. With the default setting, macOS also acts on 
 | ⌥⇥ | A Carbon `RegisterEventHotKey`, so the WindowServer does the matching and Pulse doesn't process keystrokes. macOS 15.0 briefly refused Option-only hotkeys. If registration fails, a narrow keyboard event tap is created instead. Release of ⌥ is detected by a monitor that exists only while the switcher is open. | |
 | 3-finger swipe | A listen-only HID tap for gesture events on its own thread, reading `NSTouch` positions. It never delays the cursor. A second, active tap swallows the swipe once it's recognised, and it's enabled only while 3 fingers are down. | AltTab |
 | Clipboard | Polls `changeCount` (one cheap IPC) every 0.75 s with 0.4 s leeway. It also checks on every app switch and pauses completely during sleep, screen sleep and fast user switching. Honours nspasteboard.org's concealed/transient markers, so password managers are skipped. Stores entries in SQLite (WAL) and images as PNG files. Duplicates are found by SHA-256. | Raycast, Maccy |
+| Lock screen | A private SkyLight space at absolute level 400 puts the island's window above the lock screen. Lock and unlock come from loginwindow's distributed notifications. Failed and successful attempts come from loginwindow's own log (`log stream` with a two-message predicate), which runs only while the screen is locked. Motion is fitted frame by frame to a recording of Alcove. | SkyLightWindow, Alcove |
 
 ## Efficiency rules this codebase follows
 

@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var launchAtLoginItem: NSMenuItem?
     private var accessibilityObserver: NSObjectProtocol?
+    private let lockScreenMonitor = LockScreenMonitor()
+    private let lockIsland = LockIslandController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let store = ClipboardStore(maxItems: Config.clipboardHistoryLimit)
@@ -21,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         AppActivationTracker.shared.start()
 
         registerHotKeys()
+        startLockScreenIsland()
         installDevHooksIfRequested()
         LaunchAtLogin.enableOnFirstInstalledLaunch()
         installStatusItem()
@@ -72,6 +75,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if started { gestures = monitor }
     }
 
+    // MARK: - Lock screen
+
+    private func startLockScreenIsland() {
+        lockScreenMonitor.onEvent = { [weak self] event in
+            guard let self else { return }
+            Log.app.info("lock screen: \(String(describing: event))")
+            if event == .locked { island.dismiss() } // nothing of the main island is left open behind the lock
+            lockIsland.handle(event)
+        }
+        lockScreenMonitor.start()
+    }
+
     // MARK: - Development
 
     /// Lets tooling drive the island without a keyboard, for recording and measuring animations:
@@ -97,6 +112,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case "pin": island.clipboard.togglePinOnSelection()
                 case "delete": island.clipboard.deleteSelection()
                 case "clear": island.clipboard.requestClear()
+                // Plays the lock screen island on the desktop, for recording its motion.
+                case "lock": self?.lockIsland.handle(.locked)
+                case "lockfail": self?.lockIsland.handle(.authenticationFailed)
+                case "unlock": self?.lockIsland.handle(.authenticationSucceeded)
                 default: break
                 }
             }

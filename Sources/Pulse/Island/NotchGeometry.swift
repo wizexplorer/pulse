@@ -80,6 +80,16 @@ enum IslandMetrics {
         return CGSize(width: switcherWidth, height: notch.size.height + switcherListHeight(rows: rows) + inset)
     }
 
+    /// Lock screen: the island widens by a "wing" on each side, the notch's height times 0.95 (as
+    /// measured in the reference). The lock glyph sits centered in the left wing at 38% of the height.
+    static func lockWing(_ notchHeight: CGFloat) -> CGFloat { (notchHeight * 0.95).rounded() }
+    static func lockGlyphSize(_ notchHeight: CGFloat) -> CGFloat { (notchHeight * 0.38).rounded() }
+
+    static func lockedSize(_ notch: NotchGeometry) -> CGSize {
+        let closed = closedSize(notch)
+        return CGSize(width: closed.width + 2 * lockWing(notch.size.height), height: closed.height)
+    }
+
     static func clipboardSize(_ notch: NotchGeometry) -> CGSize {
         CGSize(width: clipboardSize.width, height: notch.size.height + clipboardSize.height)
     }
