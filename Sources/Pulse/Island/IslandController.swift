@@ -76,6 +76,12 @@ final class IslandController {
         panel.allowsKey = (mode == .clipboard)
         panel.ignoresMouseEvents = false
         panel.orderFrontRegardless()
+        if !panel.isOnActiveSpace {
+            // The panel got pinned to another space (it joins all of them normally), so it would open
+            // unseen there while its shortcuts kept working. Pull it back.
+            let moved = PrivateAPI.moveToActiveSpace(panel)
+            Log.app.error("island panel was off the active space; moved back: \(moved && self.panel.isOnActiveSpace)")
+        }
         if mode == .clipboard { panel.makeKey() }
         installOutsideClickMonitor()
 

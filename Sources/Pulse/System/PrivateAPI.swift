@@ -25,6 +25,28 @@ enum PrivateAPI {
     private static let setFrontProcess = symbol("_SLPSSetFrontProcessWithOptions", SetFrontProcessFn.self)
     private static let postEventRecord = symbol("SLPSPostEventRecordTo", PostEventRecordFn.self)
 
+    private typealias MainConnectionFn = @convention(c) () -> Int32
+    private typealias GetActiveSpaceFn = @convention(c) (Int32) -> UInt64
+    private typealias MoveWindowsToSpaceFn = @convention(c) (Int32, CFArray, UInt64) -> Void
+
+    private static let mainConnection = symbol("SLSMainConnectionID", MainConnectionFn.self)
+    private static let getActiveSpace = symbol("SLSGetActiveSpace", GetActiveSpaceFn.self)
+    private static let moveWindowsToSpace = symbol("SLSMoveWindowsToManagedSpace", MoveWindowsToSpaceFn.self)
+
+    /// Moves one of our own windows onto the active space. Returns false if unavailable.
+    ///
+    /// A `.canJoinAllSpaces` window can end up pinned to a single space (seen with a full-screen
+    /// app's space), after which ordering it in shows it on that space only. Changing its collection
+    /// behavior doesn't unpin it; moving it to a space does, and it joins all spaces again.
+    static func moveToActiveSpace(_ window: NSWindow) -> Bool {
+        guard let mainConnection, let getActiveSpace, let moveWindowsToSpace else { return false }
+        let connection = mainConnection()
+        let space = getActiveSpace(connection)
+        guard space != 0 else { return false }
+        moveWindowsToSpace(connection, [window.windowNumber] as CFArray, space)
+        return true
+    }
+
     /// Maps an AX window element to its WindowServer id (used to join AX data with z-order).
     static func windowID(of element: AXUIElement) -> CGWindowID? {
         guard let axGetWindow else { return nil }
