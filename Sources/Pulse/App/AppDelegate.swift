@@ -70,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         monitor.onBegin = { [weak self] direction in self?.island.switcherGestureBegan(direction) }
         monitor.onStep = { [weak self] direction in self?.island.switcherGestureStepped(direction) }
         monitor.onEnd = { [weak self] in self?.island.switcherGestureEnded() }
+        monitor.onCancel = { [weak self] in self?.island.switcherGestureCancelled() }
         let started = monitor.start()
         Log.input.info("trackpad gesture monitor started: \(started)")
         if started { gestures = monitor }

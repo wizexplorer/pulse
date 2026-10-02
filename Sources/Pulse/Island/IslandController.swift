@@ -247,6 +247,14 @@ final class IslandController {
         switcher.commit()
     }
 
+    /// The swipe turned out to be a four-finger one. Close without switching; if the island hasn't
+    /// opened yet (it waits for the window list), it never appears.
+    func switcherGestureCancelled() {
+        guard switcherTrigger == .gesture else { return }
+        endSwitcherSession()
+        switcher.cancel()
+    }
+
     private func beginSwitcher(trigger: SwitcherTrigger, initialStep: Int) {
         endSwitcherSession()
         switcherTrigger = trigger

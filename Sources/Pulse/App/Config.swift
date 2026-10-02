@@ -32,7 +32,10 @@ enum Config {
     static let trackpadGesturesEnabled = true
     static let gestureFingerCount = 3
     /// Fraction of the trackpad width the fingers must travel before the switcher opens.
-    static let gestureTriggerDistance: CGFloat = 0.06
+    static let gestureTriggerDistance: CGFloat = 0.04
     /// Further travel needed for each additional selection step while the switcher is open.
     static let gestureStepDistance: CGFloat = 0.035
+    /// How long three fingers must be down before the swipe can trigger, so the fingers of a
+    /// four-finger swipe have time to all land. Travel during the wait still counts.
+    static let gestureSettleTime: TimeInterval = 0.06
 }

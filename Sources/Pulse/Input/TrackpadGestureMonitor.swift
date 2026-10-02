@@ -16,6 +16,15 @@ import PulseObjC
 /// - Taps created later run earlier, so the absorbing tap is created first and the detecting tap
 ///   second: detection decides, then absorption applies that decision to the same event.
 ///
+/// A four-finger swipe (Spaces, Mission Control) passes through a three-finger state twice: fingers
+/// land and lift one at a time. Two guards keep that from opening the switcher without making the
+/// trigger distance any longer:
+/// - Once more fingers than ours have touched, three-finger frames are ignored until every finger
+///   has lifted, so the tail of a four-finger swipe can't trigger.
+/// - Recognition waits `Config.gestureSettleTime` after the third finger lands, in case a fourth is
+///   on its way. Travel during that wait still counts, so a fast swipe triggers the moment it ends.
+///   If a fourth finger still lands after the switcher has begun, the gesture is cancelled.
+///
 /// Requires Accessibility permission. For best results set Trackpad ▸ More Gestures ▸ "Swipe between
 /// full-screen applications" to four fingers (or off), otherwise macOS also acts on the swipe.
 final class TrackpadGestureMonitor: @unchecked Sendable {
@@ -25,6 +34,7 @@ final class TrackpadGestureMonitor: @unchecked Sendable {
     var onBegin: (@MainActor (Direction) -> Void)?
     var onStep: (@MainActor (Direction) -> Void)?
     var onEnd: (@MainActor () -> Void)?
+    var onCancel: (@MainActor () -> Void)?
 
     private var isRunning = false
     private var detectTap: CFMachPort?
@@ -39,6 +49,10 @@ final class TrackpadGestureMonitor: @unchecked Sendable {
     private var originX: CGFloat = 0
     private var originY: CGFloat = 0
     private var anchorX: CGFloat = 0
+    private var trackingStart: TimeInterval = 0
+    /// More fingers than ours have touched since the trackpad was last empty.
+    private var sawExtraFingers = false
+    private var lastTouchTime: TimeInterval = 0
 
     /// Installs the taps. Returns false if they couldn't be created (no Accessibility access).
     @MainActor
@@ -106,7 +120,18 @@ final class TrackpadGestureMonitor: @unchecked Sendable {
         for touch in touches where touch.type == .indirect && NSTouch.Phase.touching.contains(touch.phase) {
             count += 1
         }
-        guard count == Config.gestureFingerCount else {
+        // Gesture events stream non-stop while anything touches, so a gap means the trackpad was
+        // empty in between even if we never saw a frame with every touch ended.
+        let now = event.timestamp
+        if count == 0 || now - lastTouchTime > 0.25 { sawExtraFingers = false }
+        lastTouchTime = now
+
+        if count > Config.gestureFingerCount {
+            sawExtraFingers = true
+            if tracking { endTracking(cancelled: true) }
+            return
+        }
+        guard count == Config.gestureFingerCount, !sawExtraFingers else {
             if tracking { endTracking() }
             return
         }
@@ -130,11 +155,13 @@ final class TrackpadGestureMonitor: @unchecked Sendable {
             originX = x
             originY = y
             anchorX = x
+            trackingStart = now
             setAbsorbTapEnabled(true)
             return
         }
 
         if !triggered {
+            guard now - trackingStart >= Config.gestureSettleTime else { return }
             let dx = x - originX
             let dy = y - originY
             guard abs(dx) >= Config.gestureTriggerDistance, abs(dx) > abs(dy) * 1.5 else { return }
@@ -153,9 +180,14 @@ final class TrackpadGestureMonitor: @unchecked Sendable {
         }
     }
 
-    private func endTracking() {
+    private func endTracking(cancelled: Bool = false) {
         if triggered {
-            MainActor.assumeIsolated { onEnd?() }
+            if cancelled {
+                Log.input.info("three-finger swipe cancelled: more fingers landed")
+                MainActor.assumeIsolated { onCancel?() }
+            } else {
+                MainActor.assumeIsolated { onEnd?() }
+            }
         }
         tracking = false
         triggered = false
