@@ -73,8 +73,14 @@ final class ClipboardMonitor {
         lastChangeCount = changeCount
 
         let source = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        if let source, Config.ignoredSourceBundleIDs.contains(source) { return }
-        guard let capture = ClipCapture.read(from: pasteboard) else { return }
+        if let source, Config.ignoredSourceBundleIDs.contains(source) {
+            model?.didSkipPasteboardChange()
+            return
+        }
+        guard let capture = ClipCapture.read(from: pasteboard) else {
+            model?.didSkipPasteboardChange()
+            return
+        }
 
         store.record(capture, sourceBundleID: source) { [weak model] item, pruned in
             model?.didRecord(item, pruned: pruned)

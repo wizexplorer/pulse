@@ -32,6 +32,12 @@ final class ClipboardModel: ObservableObject {
     /// True when the latest selection change came from the pointer. The list only scrolls to follow
     /// keyboard selection: moving the pointer shouldn't scroll the list out from under it.
     private(set) var selectionFromPointer = false
+    /// The item holding what's on the pasteboard right now, which the panel opens with selected.
+    /// nil when the pasteboard holds something that wasn't recorded (a password, say).
+    private var currentID: String?
+    /// Whether the pasteboard has changed since launch. Until it has, the newest item on disk is
+    /// taken to be what's on it.
+    private var pasteboardChanged = false
 
     init(store: ClipboardStore) {
         self.store = store
@@ -40,6 +46,7 @@ final class ClipboardModel: ObservableObject {
             // Anything recorded while loading is newer than what was on disk.
             let recorded = Set(self.items.map(\.id))
             self.items += items.filter { !recorded.contains($0.id) }
+            if !self.pasteboardChanged { self.currentID = self.items.first?.id }
         }
     }
 
@@ -51,6 +58,8 @@ final class ClipboardModel: ObservableObject {
     // MARK: - Store updates
 
     func didRecord(_ item: ClipItem, pruned: [String]) {
+        pasteboardChanged = true
+        currentID = item.id
         items.removeAll { $0.id == item.id }
         items.insert(item, at: 0)
         if !pruned.isEmpty {
@@ -58,6 +67,12 @@ final class ClipboardModel: ObservableObject {
             items.removeAll { doomed.contains($0.id) }
         }
         if isPresented { refilter() }
+    }
+
+    /// The pasteboard changed to something that isn't kept in the history.
+    func didSkipPasteboardChange() {
+        pasteboardChanged = true
+        currentID = nil
     }
 
     // MARK: - Editing
@@ -147,7 +162,11 @@ final class ClipboardModel: ObservableObject {
         lastPointerLocation = NSEvent.mouseLocation
         query = ""
         refilter()
-        selectedID = visibleItems.first?.id
+        // Open on what's on the pasteboard, not on whatever leads the list (pinned items do). If that
+        // isn't in the history, the newest copy stands in.
+        selectedID = visibleItems.first { $0.id == currentID }?.id
+            ?? visibleItems.first { !$0.isPinned }?.id
+            ?? visibleItems.first?.id
     }
 
     func didDismiss() {

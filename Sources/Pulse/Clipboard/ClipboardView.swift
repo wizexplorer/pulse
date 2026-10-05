@@ -150,14 +150,20 @@ private struct ClipboardList: View {
                 .mask(EdgeFadeMask(top: scroller.hasContentAbove, bottom: scroller.hasContentBelow, length: 40))
                 .onChange(of: model.selectedID) { _, id in
                     // Glides along with the highlight, like the window switcher. Keyboard only.
-                    guard !model.selectionFromPointer,
-                          let id, let index = model.visibleItems.firstIndex(where: { $0.id == id }) else { return }
-                    let top = rowTop(at: index)
-                    if !scroller.reveal(rowTop: top, rowBottom: top + Self.rowHeight, margin: Self.scrollMargin, animated: true) {
-                        proxy.scrollTo(id)
-                    }
+                    guard !model.selectionFromPointer else { return }
+                    reveal(id, proxy: proxy, animated: true)
                 }
+                // The panel can open on a row below the pinned ones, out of view.
+                .onAppear { reveal(model.selectedID, proxy: proxy, animated: false) }
             }
+        }
+    }
+
+    private func reveal(_ id: String?, proxy: ScrollViewProxy, animated: Bool) {
+        guard let id, let index = model.visibleItems.firstIndex(where: { $0.id == id }) else { return }
+        let top = rowTop(at: index)
+        if !scroller.reveal(rowTop: top, rowBottom: top + Self.rowHeight, margin: Self.scrollMargin, animated: animated) {
+            proxy.scrollTo(id)
         }
     }
 
