@@ -25,14 +25,18 @@ final class SwitcherModel: ObservableObject {
     private var pendingCommit = false
     private var generation = 0
     private var hoverAnchor: NSPoint?
+    private var followsPointer = true
 
-    func begin(initialStep: Int) {
+    /// `followsPointer` is off for a trackpad swipe: the cursor drifts as fingers land, and the
+    /// session ends when they lift, so hover could only ever fight the swipe for the selection.
+    func begin(initialStep: Int, followsPointer: Bool = true) {
         generation += 1
         let current = generation
         isLoaded = false
         pendingSteps = initialStep
         pendingCommit = false
         hoverAnchor = NSEvent.mouseLocation
+        self.followsPointer = followsPointer
         needsAccessibility = !Permissions.hasAccessibility
 
         WindowEnumerator.snapshot { [weak self] list in
@@ -90,6 +94,7 @@ final class SwitcherModel: ObservableObject {
     /// Selection follows the pointer only once it actually moves, so a list appearing under a
     /// resting cursor doesn't steal the keyboard's selection.
     func hover(_ index: Int) {
+        guard followsPointer else { return }
         if let anchor = hoverAnchor {
             guard NSEvent.mouseLocation != anchor else { return }
             hoverAnchor = nil

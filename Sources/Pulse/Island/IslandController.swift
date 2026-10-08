@@ -259,7 +259,7 @@ final class IslandController {
         endSwitcherSession()
         switcherTrigger = trigger
         installSwitcherSessionInput(for: trigger)
-        switcher.begin(initialStep: initialStep)
+        switcher.begin(initialStep: initialStep, followsPointer: trigger != .gesture)
         // Open once the window list is in (usually 5–120 ms), so the island springs straight to its
         // final size. A resize that lands in the first frames of the open spring gets lost, which
         // left the very first switcher of a session stuck at one row.
