@@ -35,10 +35,11 @@ enum WindowEnumerator {
 
         queue.async {
             let zOrder = onScreenZOrder()
+            let displays = displayBounds()
             var perApp = [[WindowInfo]](repeating: [], count: apps.count)
             perApp.withUnsafeMutableBufferPointer { buffer in
                 DispatchQueue.concurrentPerform(iterations: apps.count) { index in
-                    buffer[index] = windows(of: apps[index])
+                    buffer[index] = windows(of: apps[index], displays: displays)
                 }
             }
 
@@ -85,9 +86,32 @@ enum WindowEnumerator {
         return order
     }
 
-    private static let windowAttributes = [kAXSubroleAttribute, kAXTitleAttribute, kAXMinimizedAttribute] as CFArray
+    /// Global bounds of every active display, in the same top-left coordinates AX positions use.
+    private static func displayBounds() -> [CGRect] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return [] }
+        return ids.prefix(Int(count)).map { CGDisplayBounds($0) }
+    }
 
-    private static func windows(of app: AppRef) -> [WindowInfo] {
+    /// Smallest side a real window can have; a titled window can't be shorter than its title bar.
+    private static let minimumSide: CGFloat = 32
+
+    /// Some apps keep helper windows that claim the standard subrole but are never meant to be seen,
+    /// like Orion's "Orion Preview": 1×1 pt, tucked into a screen corner. Judge them by geometry.
+    private static func isHelperWindow(position: CGPoint?, size: CGSize?, displays: [CGRect]) -> Bool {
+        guard let position, let size else { return false }
+        if size.width < minimumSide || size.height < minimumSide { return true }
+        let frame = CGRect(origin: position, size: size)
+        return !displays.isEmpty && !displays.contains { $0.intersects(frame) }
+    }
+
+    private static let windowAttributes = [
+        kAXSubroleAttribute, kAXTitleAttribute, kAXMinimizedAttribute, kAXPositionAttribute, kAXSizeAttribute,
+    ] as CFArray
+
+    private static func windows(of app: AppRef, displays: [CGRect]) -> [WindowInfo] {
         let axApp = AXUIElementCreateApplication(app.pid)
         // A hung app must never stall the switcher.
         AXUIElementSetMessagingTimeout(axApp, 0.15)
@@ -98,13 +122,14 @@ enum WindowEnumerator {
 
         var result: [WindowInfo] = []
         for element in axWindows {
-            // One IPC round-trip for all three attributes instead of three.
+            // One IPC round-trip for all the attributes instead of one each.
             var valuesRef: CFArray?
             guard AXUIElementCopyMultipleAttributeValues(element, windowAttributes, AXCopyMultipleAttributeOptions(rawValue: 0), &valuesRef) == .success,
-                  let values = valuesRef as? [Any], values.count == 3 else { continue }
+                  let values = valuesRef as? [Any], values.count == 5 else { continue }
 
             let subrole = values[0] as? String
             guard subrole == kAXStandardWindowSubrole || subrole == kAXDialogSubrole else { continue }
+            guard !isHelperWindow(position: point(values[3]), size: size(values[4]), displays: displays) else { continue }
             let title = values[1] as? String ?? ""
             let minimized = values[2] as? Bool ?? false
             let windowID = PrivateAPI.windowID(of: element)
@@ -122,5 +147,17 @@ enum WindowEnumerator {
             ))
         }
         return result
+    }
+
+    private static func point(_ value: Any) -> CGPoint? {
+        guard CFGetTypeID(value as CFTypeRef) == AXValueGetTypeID() else { return nil }
+        var point = CGPoint.zero
+        return AXValueGetValue(value as! AXValue, .cgPoint, &point) ? point : nil
+    }
+
+    private static func size(_ value: Any) -> CGSize? {
+        guard CFGetTypeID(value as CFTypeRef) == AXValueGetTypeID() else { return nil }
+        var size = CGSize.zero
+        return AXValueGetValue(value as! AXValue, .cgSize, &size) ? size : nil
     }
 }
